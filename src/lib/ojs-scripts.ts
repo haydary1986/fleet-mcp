@@ -102,8 +102,15 @@ if not os.path.exists(p):
     print('config.inc.php missing — install likely failed'); raise SystemExit(4)
 s = open(p).read()
 def set_ini(text, key, line):
-    pat = re.compile(r'^;?\s*' + re.escape(key) + r'\s*=.*$', re.M)
-    return pat.sub(line, text, count=1) if pat.search(text) else text + "\n" + line + "\n"
+    # Remove ALL existing (commented or active) occurrences, then insert exactly
+    # once under [general]. OJS ships a default allowed_hosts = "[\"\"]" AND a
+    # commented example; replacing only the first leaves the empty one, which
+    # wins in INI parsing -> the 400 Bad Request bug. (Caught on a live install.)
+    text = re.sub(r'^;?[ \t]*' + re.escape(key) + r'[ \t]*=.*$\n?', '', text, flags=re.M)
+    m = re.search(r'^\[general\][^\n]*\n', text, flags=re.M)
+    if m:
+        return text[:m.end()] + line + "\n" + text[m.end():]
+    return text + "\n" + line + "\n"
 allowed_ini = ('[' + json.dumps(dom) + ']').replace('"', '\\"')   # [\"domain\"]
 s = set_ini(s, 'allowed_hosts', 'allowed_hosts = "' + allowed_ini + '"')
 s = set_ini(s, 'base_url', 'base_url = "https://' + dom + '"')
