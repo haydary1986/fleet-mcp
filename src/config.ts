@@ -28,6 +28,11 @@ export const config = {
   ssh: {
     target: process.env.FLEET_SSH_TARGET ?? "",
     options: process.env.FLEET_SSH_OPTIONS ?? "",
+    // Reuse one SSH connection across tool calls (ControlMaster) — faster and
+    // avoids fail2ban bans from many rapid connections. Disable with "false".
+    multiplex: (process.env.FLEET_SSH_MULTIPLEX ?? "true").toLowerCase() !== "false",
+    controlPath: process.env.FLEET_SSH_CONTROL_PATH ?? "/tmp/fleet-mcp-cm-%r@%h:%p",
+    controlPersist: process.env.FLEET_SSH_CONTROL_PERSIST ?? "120s",
   },
   wp: {
     docrootTemplate:

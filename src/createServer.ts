@@ -10,6 +10,7 @@ import { registerDocker } from "./tools/docker.js";
 import { registerCoolify } from "./tools/coolify.js";
 import { registerOjs } from "./tools/ojs.js";
 import { registerDev } from "./tools/dev.js";
+import { registerPlesk } from "./tools/plesk.js";
 
 /** Build a fully-configured MCP server. Transport-agnostic — used by both the
  *  stdio (local) and Streamable HTTP (remote/team) entry points. */
@@ -26,6 +27,7 @@ export function createServer(): McpServer {
   registerCoolify(server);
   registerOjs(server);
   registerDev(server);
+  registerPlesk(server);
 
   return server;
 }

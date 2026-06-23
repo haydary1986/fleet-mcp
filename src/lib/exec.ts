@@ -41,7 +41,17 @@ export function runLocal(file: string, args: string[], opts: ExecOptions = {}): 
 
 function sshArgs(target: string, command: string): string[] {
   const opts = config.ssh.options ? config.ssh.options.split(/\s+/).filter(Boolean) : [];
-  return [...opts, target, command];
+  const mux = config.ssh.multiplex
+    ? [
+        "-o",
+        "ControlMaster=auto",
+        "-o",
+        `ControlPath=${config.ssh.controlPath}`,
+        "-o",
+        `ControlPersist=${config.ssh.controlPersist}`,
+      ]
+    : [];
+  return [...mux, ...opts, target, command];
 }
 
 /** Run a shell command on a specific SSH target. */
