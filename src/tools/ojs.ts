@@ -21,6 +21,13 @@ export function registerOjs(server: McpServer) {
         "Prerequisite: the subdomain, its docroot and DNS must already exist.",
       inputSchema: {
         domain: z.string().describe("Full subdomain, e.g. journal.example.com"),
+        pleskDomain: z
+          .string()
+          .optional()
+          .describe(
+            "Plesk subscription domain for DB commands — the PARENT for a subdomain " +
+              "(e.g. example.com); defaults to `domain`"
+          ),
         adminEmail: z
           .string()
           .email()
@@ -63,6 +70,7 @@ export function registerOjs(server: McpServer) {
 
       const script = buildInstallScript({
         domain: a.domain,
+        pleskDomain: a.pleskDomain ?? a.domain,
         docroot,
         filesDir,
         dbName,

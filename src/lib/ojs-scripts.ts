@@ -12,6 +12,9 @@
 
 export interface OjsInstallParams {
   domain: string;
+  /** Plesk subscription domain for db/handler commands — equals `domain` for a
+   *  standalone webspace, but the PARENT (e.g. erticaz.com) for a subdomain. */
+  pleskDomain: string;
   docroot: string;
   filesDir: string;
   dbName: string;
@@ -68,8 +71,8 @@ mkdir -p "${p.filesDir}"
 chmod 750 "${p.filesDir}"
 
 echo "==> Create database + user (Plesk)"
-plesk bin database --create "${p.dbName}" -domain "${p.domain}" -server localhost -type mysql 2>&1 || echo "(database may already exist)"
-plesk bin database --create-dbuser "${p.dbUser}" -passwd '${p.dbPass}' -domain "${p.domain}" -database "${p.dbName}" 2>&1 || echo "(db user may already exist)"
+plesk bin database --create "${p.dbName}" -domain "${p.pleskDomain}" -server localhost -type mysql 2>&1 || echo "(database may already exist)"
+plesk bin database --create-dbuser "${p.dbUser}" -passwd '${p.dbPass}' -domain "${p.pleskDomain}" -database "${p.dbName}" -server localhost -type mysql 2>&1 || echo "(db user may already exist)"
 
 echo "==> Run OJS CLI installer"
 cat > /tmp/ojs-answers <<'ANS'
