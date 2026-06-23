@@ -62,6 +62,11 @@ export const config = {
     adminEmail: process.env.OJS_ADMIN_EMAIL ?? "",
     vhostsRoot: process.env.OJS_VHOSTS_ROOT ?? "/var/www/vhosts",
   },
+  moodle: {
+    phpBin: process.env.MOODLE_PHP_BIN ?? "/opt/plesk/php/8.2/bin/php",
+    docrootTemplate:
+      process.env.MOODLE_DOCROOT_TEMPLATE ?? "/var/www/vhosts/{domain}/httpdocs",
+  },
   http: {
     port: Number(process.env.MCP_HTTP_PORT ?? 8787),
     authToken: process.env.MCP_AUTH_TOKEN ?? "",
