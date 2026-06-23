@@ -13,5 +13,8 @@ export function randomPassword(len = 20): string {
 
 /** First DNS label of a domain, sanitised for use in DB names/identifiers. */
 export function subLabel(domain: string): string {
-  return domain.split(".")[0].replace(/[^a-z0-9]/gi, "").toLowerCase();
+  return domain
+    .split(".")[0]
+    .replace(/[^a-z0-9]/gi, "")
+    .toLowerCase();
 }

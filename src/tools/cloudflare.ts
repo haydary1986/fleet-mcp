@@ -2,6 +2,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { cf, cfText, zoneId } from "../lib/cloudflare.js";
 import { text, safe } from "../lib/result.js";
+import { domainSchema } from "../lib/validate.js";
+import { READ_ONLY, WRITE, IDEMPOTENT_WRITE } from "../lib/annotations.js";
 
 const accountArg = z
   .string()
@@ -14,7 +16,11 @@ export function registerCloudflare(server: McpServer) {
     {
       title: "Cloudflare zone status",
       description: "Show a zone's status, plan, and nameservers by domain name.",
-      inputSchema: { domain: z.string().describe("Domain, e.g. example.org"), account: accountArg },
+      inputSchema: {
+        domain: domainSchema.describe("Domain, e.g. example.org"),
+        account: accountArg,
+      },
+      annotations: READ_ONLY,
     },
     safe(async ({ domain, account }) => {
       const j = await cf(account, `/zones?name=${encodeURIComponent(domain)}`);
@@ -32,10 +38,11 @@ export function registerCloudflare(server: McpServer) {
       title: "List DNS records",
       description: "List DNS records for a zone (by domain).",
       inputSchema: {
-        domain: z.string().describe("Zone domain"),
+        domain: domainSchema.describe("Zone domain"),
         type: z.string().optional().describe("Filter by record type, e.g. A, CNAME, MX"),
         account: accountArg,
       },
+      annotations: READ_ONLY,
     },
     safe(async ({ domain, type, account }) => {
       const id = await zoneId(account, domain);
@@ -55,7 +62,7 @@ export function registerCloudflare(server: McpServer) {
       title: "Add DNS record",
       description: "Create a DNS record in a zone.",
       inputSchema: {
-        domain: z.string().describe("Zone domain"),
+        domain: domainSchema.describe("Zone domain"),
         type: z.string().describe("Record type, e.g. A, AAAA, CNAME, TXT, MX"),
         name: z.string().describe("Record name, e.g. www or @ for root"),
         content: z.string().describe("Record value, e.g. an IP or target host"),
@@ -64,6 +71,7 @@ export function registerCloudflare(server: McpServer) {
         priority: z.number().int().optional().describe("Priority (MX/SRV only)"),
         account: accountArg,
       },
+      annotations: WRITE,
     },
     safe(async ({ domain, type, name, content, proxied, ttl, priority, account }) => {
       const id = await zoneId(account, domain);
@@ -73,7 +81,9 @@ export function registerCloudflare(server: McpServer) {
         method: "POST",
         body: JSON.stringify(body),
       });
-      return text(`Created ${j.result.type} ${j.result.name} -> ${j.result.content} (id ${j.result.id})`);
+      return text(
+        `Created ${j.result.type} ${j.result.name} -> ${j.result.content} (id ${j.result.id})`
+      );
     })
   );
 
@@ -83,11 +93,12 @@ export function registerCloudflare(server: McpServer) {
       title: "Toggle record proxy",
       description: "Turn Cloudflare proxy (orange cloud) on or off for a specific record.",
       inputSchema: {
-        domain: z.string().describe("Zone domain"),
+        domain: domainSchema.describe("Zone domain"),
         name: z.string().describe("Full record name, e.g. www.example.com"),
         proxied: z.boolean().describe("true = proxied (orange), false = DNS only (grey)"),
         account: accountArg,
       },
+      annotations: IDEMPOTENT_WRITE,
     },
     safe(async ({ domain, name, proxied, account }) => {
       const id = await zoneId(account, domain);
@@ -107,7 +118,8 @@ export function registerCloudflare(server: McpServer) {
     {
       title: "Export DNS (BIND)",
       description: "Export all DNS records for a zone as a BIND zone file (good for backups).",
-      inputSchema: { domain: z.string().describe("Zone domain"), account: accountArg },
+      inputSchema: { domain: domainSchema.describe("Zone domain"), account: accountArg },
+      annotations: READ_ONLY,
     },
     safe(async ({ domain, account }) => {
       const id = await zoneId(account, domain);

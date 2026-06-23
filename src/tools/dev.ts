@@ -2,6 +2,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runLocal } from "../lib/exec.js";
 import { fromExec, text, safe } from "../lib/result.js";
+import { absolutePathSchema, packageNameSchema, goModuleSchema } from "../lib/validate.js";
+import { WRITE, IDEMPOTENT_WRITE } from "../lib/annotations.js";
 
 const LONG = 600_000; // installs/builds can be slow
 
@@ -64,9 +66,10 @@ export function registerDev(server: McpServer) {
         "Auto-detect the stack in a directory and run its checks. Go: vet, build, test. " +
         "Node/TS: optional install, then tsc --noEmit, lint, build (whatever exists).",
       inputSchema: {
-        path: z.string().describe("Absolute path to the project directory"),
+        path: absolutePathSchema.describe("Absolute path to the project directory"),
         install: z.boolean().default(true).describe("Run npm install first (Node projects)"),
       },
+      annotations: IDEMPOTENT_WRITE,
     },
     safe(async ({ path, install }) => {
       const script = `
@@ -96,9 +99,10 @@ fi
       description:
         "Create a new Next.js app (TypeScript, App Router) via create-next-app in the given directory.",
       inputSchema: {
-        name: z.string().describe("App/folder name"),
-        dir: z.string().describe("Parent directory to create the app in"),
+        name: packageNameSchema.describe("App/folder name"),
+        dir: absolutePathSchema.describe("Parent directory to create the app in"),
       },
+      annotations: WRITE,
     },
     safe(async ({ name, dir }) =>
       fromExec(
@@ -117,10 +121,11 @@ fi
       title: "Scaffold a Go module",
       description: "Create a new Go module with a minimal main.go and verify it builds.",
       inputSchema: {
-        name: z.string().describe("Folder name"),
-        module: z.string().describe("Go module path, e.g. github.com/you/app"),
-        dir: z.string().describe("Parent directory"),
+        name: packageNameSchema.describe("Folder name"),
+        module: goModuleSchema.describe("Go module path, e.g. github.com/you/app"),
+        dir: absolutePathSchema.describe("Parent directory"),
       },
+      annotations: WRITE,
     },
     safe(async ({ name, module, dir }) => {
       const script = `
@@ -146,11 +151,13 @@ go build ./... && echo "scaffolded ${module} in ${dir}/${name}"
     "scaffold_ts_lib",
     {
       title: "Scaffold a TypeScript library",
-      description: "Create a minimal strict-TypeScript library (package.json, tsconfig, src/index.ts).",
+      description:
+        "Create a minimal strict-TypeScript library (package.json, tsconfig, src/index.ts).",
       inputSchema: {
-        name: z.string().describe("Folder + package name"),
-        dir: z.string().describe("Parent directory"),
+        name: packageNameSchema.describe("Folder + package name"),
+        dir: absolutePathSchema.describe("Parent directory"),
       },
+      annotations: WRITE,
     },
     safe(async ({ name, dir }) => {
       const pkg = JSON.stringify(
@@ -204,15 +211,20 @@ echo "scaffolded TS library '${name}' in ${dir}/${name}"
         "Write a production multi-stage Dockerfile into a project. Pairs with the docker_* " +
         "and coolify_* tools to build and deploy the result on your server.",
       inputSchema: {
-        path: z.string().describe("Project directory to write the Dockerfile into"),
+        path: absolutePathSchema.describe("Project directory to write the Dockerfile into"),
         stack: z.enum(["nextjs", "node", "go"]).describe("Project stack"),
       },
+      // Writes a single local file; no network. Repeating yields the same file.
+      annotations: { ...IDEMPOTENT_WRITE, openWorldHint: false },
     },
     safe(async ({ path, stack }) => {
       const b64 = Buffer.from(DOCKERFILES[stack]).toString("base64");
       const r = await runLocal(
         "bash",
-        ["-lc", `echo "${b64}" | base64 -d > Dockerfile && echo "wrote Dockerfile (${stack}) to ${path}"`],
+        [
+          "-lc",
+          `echo "${b64}" | base64 -d > Dockerfile && echo "wrote Dockerfile (${stack}) to ${path}"`,
+        ],
         { cwd: path }
       );
       return r.code === 0

@@ -3,6 +3,8 @@ import { z } from "zod";
 import { config } from "../config.js";
 import { runRemote } from "../lib/exec.js";
 import { fromExec, safe } from "../lib/result.js";
+import { siteSchema, domainSchema, shellQuote } from "../lib/validate.js";
+import { READ_ONLY, IDEMPOTENT_WRITE, DESTRUCTIVE } from "../lib/annotations.js";
 
 /** Resolve a site reference to a docroot path. */
 function docrootFor(siteOrPath: string): string {
@@ -17,10 +19,10 @@ function wpBin(): string {
 
 function wpRun(site: string, wpArgs: string) {
   const path = docrootFor(site);
-  return runRemote(`cd ${path} && ${wpBin()} ${wpArgs}`);
+  return runRemote(`cd ${shellQuote(path)} && ${wpBin()} ${wpArgs}`);
 }
 
-const siteArg = z.string().describe("Domain (example.com) or absolute docroot path");
+const siteArg = siteSchema.describe("Domain (example.com) or absolute docroot path");
 
 export function registerWordpress(server: McpServer) {
   server.registerTool(
@@ -32,10 +34,9 @@ export function registerWordpress(server: McpServer) {
         "(mapped via WP_DOCROOT_TEMPLATE) or an absolute docroot path.",
       inputSchema: {
         site: siteArg,
-        command: z
-          .string()
-          .describe("wp-cli arguments, e.g. \"plugin list --status=active\""),
+        command: z.string().describe('wp-cli arguments, e.g. "plugin list --status=active"'),
       },
+      annotations: DESTRUCTIVE,
     },
     safe(async ({ site, command }) => fromExec(await wpRun(site, command)))
   );
@@ -49,6 +50,7 @@ export function registerWordpress(server: McpServer) {
         site: siteArg,
         dryRun: z.boolean().default(false).describe("Only report available updates"),
       },
+      annotations: IDEMPOTENT_WRITE,
     },
     safe(async ({ site, dryRun }) =>
       fromExec(await wpRun(site, `plugin update --all${dryRun ? " --dry-run" : ""}`))
@@ -63,6 +65,7 @@ export function registerWordpress(server: McpServer) {
         "Purge the full LiteSpeed (LSCache) cache for a site. Note: restarting " +
         "lsws is NOT the same as purging the cache.",
       inputSchema: { site: siteArg },
+      annotations: IDEMPOTENT_WRITE,
     },
     safe(async ({ site }) => fromExec(await wpRun(site, "litespeed-purge all")))
   );
@@ -75,6 +78,7 @@ export function registerWordpress(server: McpServer) {
         "Quick health snapshot: site URL, core version, active plugin count, " +
         "and PHP version reported by wp-cli.",
       inputSchema: { site: siteArg },
+      annotations: READ_ONLY,
     },
     safe(async ({ site }) => {
       const cmd =
@@ -91,12 +95,15 @@ export function registerWordpress(server: McpServer) {
       description:
         "Show the PHP handler configured in Plesk for a domain (FastCGI vs FPM, version).",
       inputSchema: {
-        domain: z.string().describe("Domain registered in Plesk, e.g. example.com"),
+        domain: domainSchema.describe("Domain registered in Plesk, e.g. example.com"),
       },
+      annotations: READ_ONLY,
     },
     safe(async ({ domain }) =>
       fromExec(
-        await runRemote(`plesk bin domain --info ${domain} 2>&1 | grep -iE 'php' || echo 'no php info'`)
+        await runRemote(
+          `plesk bin domain --info ${shellQuote(domain)} 2>&1 | grep -iE 'php' || echo 'no php info'`
+        )
       )
     )
   );

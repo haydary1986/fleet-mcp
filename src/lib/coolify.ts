@@ -1,14 +1,9 @@
 import { config } from "../config.js";
 
 /** Call the Coolify v1 API and return parsed JSON (throws on HTTP errors). */
-export async function coolify(
-  path: string,
-  init: RequestInit = {}
-): Promise<any> {
+export async function coolify(path: string, init: RequestInit = {}): Promise<any> {
   if (!config.coolify.baseUrl || !config.coolify.token) {
-    throw new Error(
-      "Coolify not configured. Set COOLIFY_BASE_URL and COOLIFY_TOKEN."
-    );
+    throw new Error("Coolify not configured. Set COOLIFY_BASE_URL and COOLIFY_TOKEN.");
   }
   const res = await fetch(`${config.coolify.baseUrl}/api/v1${path}`, {
     ...init,

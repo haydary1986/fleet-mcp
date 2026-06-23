@@ -5,6 +5,8 @@ import { runRemote } from "../lib/exec.js";
 import { fromExec, text, errorText, safe } from "../lib/result.js";
 import { randomPassword, subLabel } from "../lib/creds.js";
 import { buildInstallScript, buildJournalScript } from "../lib/ojs-scripts.js";
+import { domainSchema, absolutePathSchema, shellQuote } from "../lib/validate.js";
+import { READ_ONLY, WRITE, DESTRUCTIVE } from "../lib/annotations.js";
 
 const INSTALL_TIMEOUT_MS = 300_000; // downloads + install can take minutes
 
@@ -19,20 +21,20 @@ export function registerOjs(server: McpServer) {
         "(allowed_hosts/base_url/trust_x_forwarded_for), set perms and PHP handler. " +
         "Generates admin + DB passwords and returns the access details. " +
         "Prerequisite: the subdomain, its docroot and DNS must already exist.",
+      annotations: DESTRUCTIVE,
       inputSchema: {
-        domain: z.string().describe("Full subdomain, e.g. journal.example.com"),
+        domain: domainSchema.describe("Full subdomain, e.g. journal.example.com"),
         adminEmail: z
           .string()
           .email()
           .optional()
           .describe("Admin email (defaults to OJS_ADMIN_EMAIL)"),
-        docroot: z.string().optional().describe("Override docroot path"),
-        filesDir: z.string().optional().describe("Override OJS files dir (outside webroot)"),
+        docroot: absolutePathSchema.optional().describe("Override docroot path"),
+        filesDir: absolutePathSchema
+          .optional()
+          .describe("Override OJS files dir (outside webroot)"),
         primaryLocale: z.string().default("en").describe("Primary locale key"),
-        additionalLocales: z
-          .string()
-          .default("ar")
-          .describe("Comma-separated extra locale keys"),
+        additionalLocales: z.string().default("ar").describe("Comma-separated extra locale keys"),
         setPhpHandler: z
           .boolean()
           .default(true)
@@ -41,9 +43,18 @@ export function registerOjs(server: McpServer) {
           .boolean()
           .default(false)
           .describe("Also create the first journal after install (see ojs_create_journal args)"),
-        journalPath: z.string().optional().describe("urlPath for the journal when createJournal=true"),
-        journalNameEn: z.string().optional().describe("English journal name when createJournal=true"),
-        journalNameAr: z.string().optional().describe("Arabic journal name when createJournal=true"),
+        journalPath: z
+          .string()
+          .optional()
+          .describe("urlPath for the journal when createJournal=true"),
+        journalNameEn: z
+          .string()
+          .optional()
+          .describe("English journal name when createJournal=true"),
+        journalNameAr: z
+          .string()
+          .optional()
+          .describe("Arabic journal name when createJournal=true"),
         acronym: z.string().optional().describe("Journal acronym when createJournal=true"),
       },
     },
@@ -92,7 +103,13 @@ export function registerOjs(server: McpServer) {
           docroot,
           urlPath,
           primaryLocale: a.primaryLocale,
-          locales: [a.primaryLocale, ...a.additionalLocales.split(",").map((s) => s.trim()).filter(Boolean)],
+          locales: [
+            a.primaryLocale,
+            ...a.additionalLocales
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean),
+          ],
           nameByLocale: { en: nameEn, ...(a.journalNameAr ? { ar: a.journalNameAr } : {}) },
           acronymByLocale: { en: a.acronym ?? label.toUpperCase() },
           phpBin: config.ojs.phpBin,
@@ -110,7 +127,9 @@ export function registerOjs(server: McpServer) {
         `DB name/user:  ${dbName} / ${dbUser}\n` +
         `DB password:   ${dbPass}\n` +
         `Files dir:     ${filesDir}\n` +
-        (a.createJournal ? `Journal URL:   https://${a.domain}/index.php/${a.journalPath ?? label}/\n` : "");
+        (a.createJournal
+          ? `Journal URL:   https://${a.domain}/index.php/${a.journalPath ?? label}/\n`
+          : "");
 
       const body = `${installLog.stdout}\n${installLog.stderr}${journalLog}${creds}`;
       return installLog.code === 0 ? text(body) : errorText(body);
@@ -125,15 +144,16 @@ export function registerOjs(server: McpServer) {
         "Create the first (or another) journal on an existing OJS install via the CLI " +
         "bootstrap recipe — handles the 3 known gotchas (loadAllPlugins throw, missing " +
         "default section, per-context theme enable) so the frontend works immediately.",
+      annotations: WRITE,
       inputSchema: {
-        domain: z.string().describe("OJS subdomain, e.g. journal.example.com"),
+        domain: domainSchema.describe("OJS subdomain, e.g. journal.example.com"),
         urlPath: z.string().describe("Journal path segment, e.g. myjournal"),
         nameEn: z.string().describe("English journal name"),
         nameAr: z.string().optional().describe("Arabic journal name"),
         acronym: z.string().describe("Acronym, e.g. MYJ"),
         primaryLocale: z.string().default("en"),
         locales: z.array(z.string()).default(["en", "ar"]).describe("Supported locales"),
-        docroot: z.string().optional().describe("Override docroot path"),
+        docroot: absolutePathSchema.optional().describe("Override docroot path"),
       },
     },
     safe(async (a) => {
@@ -159,14 +179,16 @@ export function registerOjs(server: McpServer) {
       description:
         "Quick health check of an OJS site: homepage HTTP code, whether config.inc.php " +
         "exists and is installed, and the configured base_url / allowed_hosts.",
+      annotations: READ_ONLY,
       inputSchema: {
-        domain: z.string().describe("OJS subdomain"),
-        docroot: z.string().optional().describe("Override docroot path"),
+        domain: domainSchema.describe("OJS subdomain"),
+        docroot: absolutePathSchema.optional().describe("Override docroot path"),
       },
     },
     safe(async ({ domain, docroot }) => {
       const root = docroot ?? `${config.ojs.vhostsRoot}/${domain}/httpdocs`;
-      const cmd = `echo "homepage:"; curl -sS -o /dev/null -w "  HTTP %{http_code}\\n" "https://${domain}/" || true; echo "config:"; grep -E '^(installed|base_url|allowed_hosts)' "${root}/config.inc.php" 2>/dev/null | sed 's/^/  /' || echo "  config.inc.php not found at ${root}"`;
+      const qroot = shellQuote(root);
+      const cmd = `echo "homepage:"; curl -sS -o /dev/null -w "  HTTP %{http_code}\\n" "https://${domain}/" || true; echo "config:"; grep -E '^(installed|base_url|allowed_hosts)' ${qroot}/config.inc.php 2>/dev/null | sed 's/^/  /' || echo "  config.inc.php not found at ${root}"`;
       return fromExec(await runRemote(cmd));
     })
   );

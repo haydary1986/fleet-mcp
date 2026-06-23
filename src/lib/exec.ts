@@ -35,7 +35,11 @@ async function run(file: string, args: string[], opts: ExecOptions = {}): Promis
 }
 
 /** Run a command on the local machine. Arguments are passed safely (no shell). */
-export function runLocal(file: string, args: string[], opts: ExecOptions = {}): Promise<ExecResult> {
+export function runLocal(
+  file: string,
+  args: string[],
+  opts: ExecOptions = {}
+): Promise<ExecResult> {
   return run(file, args, opts);
 }
 
@@ -45,7 +49,11 @@ function sshArgs(target: string, command: string): string[] {
 }
 
 /** Run a shell command on a specific SSH target. */
-export function runRemoteOn(target: string, command: string, opts: ExecOptions = {}): Promise<ExecResult> {
+export function runRemoteOn(
+  target: string,
+  command: string,
+  opts: ExecOptions = {}
+): Promise<ExecResult> {
   return run("ssh", sshArgs(target, command), opts);
 }
 

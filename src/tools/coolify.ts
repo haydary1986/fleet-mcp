@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { coolify } from "../lib/coolify.js";
 import { text, json, safe } from "../lib/result.js";
+import { READ_ONLY, WRITE } from "../lib/annotations.js";
 
 export function registerCoolify(server: McpServer) {
   server.registerTool(
@@ -10,6 +11,7 @@ export function registerCoolify(server: McpServer) {
       title: "List Coolify servers",
       description: "List servers connected to your Coolify instance.",
       inputSchema: {},
+      annotations: READ_ONLY,
     },
     safe(async () => {
       const list = await coolify("/servers");
@@ -26,13 +28,16 @@ export function registerCoolify(server: McpServer) {
       title: "List Coolify apps",
       description: "List applications managed by Coolify (name, status, uuid).",
       inputSchema: {},
+      annotations: READ_ONLY,
     },
     safe(async () => {
       const list = await coolify("/applications");
       const rows = (Array.isArray(list) ? list : []).map(
         (a: any) => `${(a.name ?? "?").padEnd(28)} ${(a.status ?? "?").padEnd(14)} ${a.uuid}`
       );
-      return rows.length ? text(["NAME                         STATUS         UUID", ...rows].join("\n")) : json(list);
+      return rows.length
+        ? text(["NAME                         STATUS         UUID", ...rows].join("\n"))
+        : json(list);
     })
   );
 
@@ -45,6 +50,7 @@ export function registerCoolify(server: McpServer) {
         uuid: z.string().describe("Application uuid (from coolify_apps)"),
         force: z.boolean().default(false).describe("Force rebuild without cache"),
       },
+      annotations: WRITE,
     },
     safe(async ({ uuid, force }) => {
       const res = await coolify(`/deploy?uuid=${encodeURIComponent(uuid)}&force=${force}`);
@@ -58,6 +64,7 @@ export function registerCoolify(server: McpServer) {
       title: "List all resources",
       description: "List all Coolify resources (apps, databases, services) across projects.",
       inputSchema: {},
+      annotations: READ_ONLY,
     },
     safe(async () => json(await coolify("/resources")))
   );

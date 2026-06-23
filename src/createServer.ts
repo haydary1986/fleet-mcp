@@ -10,11 +10,15 @@ import { registerDocker } from "./tools/docker.js";
 import { registerCoolify } from "./tools/coolify.js";
 import { registerOjs } from "./tools/ojs.js";
 import { registerDev } from "./tools/dev.js";
+import { registerDoctor } from "./tools/doctor.js";
+import { registerResources } from "./resources/index.js";
+import { registerPrompts } from "./prompts/index.js";
+import { NAME, VERSION } from "./lib/version.js";
 
 /** Build a fully-configured MCP server. Transport-agnostic — used by both the
  *  stdio (local) and Streamable HTTP (remote/team) entry points. */
 export function createServer(): McpServer {
-  const server = new McpServer({ name: "fleet-mcp", version: "1.0.0" });
+  const server = new McpServer({ name: NAME, version: VERSION });
 
   registerSsh(server);
   registerSites(server);
@@ -26,6 +30,10 @@ export function createServer(): McpServer {
   registerCoolify(server);
   registerOjs(server);
   registerDev(server);
+  registerDoctor(server);
+
+  registerResources(server);
+  registerPrompts(server);
 
   return server;
 }

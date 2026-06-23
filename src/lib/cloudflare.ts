@@ -6,9 +6,7 @@ const API = "https://api.cloudflare.com/client/v4";
 export function account(key?: string): CloudflareAccount {
   const accounts = config.cloudflare;
   if (accounts.length === 0) {
-    throw new Error(
-      'Cloudflare not configured. Set CF_ACCOUNTS="main:token,secondary:token".'
-    );
+    throw new Error('Cloudflare not configured. Set CF_ACCOUNTS="main:token,secondary:token".');
   }
   if (!key) return accounts[0];
   const found = accounts.find((a) => a.key === key);
@@ -37,18 +35,14 @@ export async function cf(
   });
   const json: any = await res.json().catch(() => ({}));
   if (!res.ok || json?.success === false) {
-    const errs =
-      json?.errors?.map((e: any) => e.message).join("; ") || res.statusText;
+    const errs = json?.errors?.map((e: any) => e.message).join("; ") || res.statusText;
     throw new Error(`Cloudflare API ${res.status}: ${errs}`);
   }
   return json;
 }
 
 /** Call a Cloudflare endpoint that returns plain text (e.g. BIND export). */
-export async function cfText(
-  accountKey: string | undefined,
-  path: string
-): Promise<string> {
+export async function cfText(accountKey: string | undefined, path: string): Promise<string> {
   const acc = account(accountKey);
   const res = await fetch(`${API}${path}`, {
     headers: { Authorization: `Bearer ${acc.token}` },
@@ -59,10 +53,7 @@ export async function cfText(
 }
 
 /** Look up a zone id by domain name within an account. */
-export async function zoneId(
-  accountKey: string | undefined,
-  domain: string
-): Promise<string> {
+export async function zoneId(accountKey: string | undefined, domain: string): Promise<string> {
   const j = await cf(accountKey, `/zones?name=${encodeURIComponent(domain)}`);
   if (!j.result?.length) throw new Error(`Zone not found for ${domain}`);
   return j.result[0].id as string;
