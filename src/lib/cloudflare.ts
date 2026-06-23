@@ -58,6 +58,31 @@ export async function cfText(
   return body;
 }
 
+/** Import a BIND zone file into a zone (used to restore a backup). */
+export async function cfImportBind(
+  accountKey: string | undefined,
+  zone: string,
+  bind: string,
+  proxied?: boolean
+): Promise<any> {
+  const acc = account(accountKey);
+  const form = new FormData();
+  form.append("file", new Blob([bind], { type: "text/plain" }), "zone.txt");
+  if (proxied !== undefined) form.append("proxied", String(proxied));
+  // Do NOT set Content-Type — fetch sets the multipart boundary automatically.
+  const res = await fetch(`${API}/zones/${zone}/dns_records/import`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${acc.token}` },
+    body: form,
+  });
+  const json: any = await res.json().catch(() => ({}));
+  if (!res.ok || json?.success === false) {
+    const errs = json?.errors?.map((e: any) => e.message).join("; ") || res.statusText;
+    throw new Error(`Cloudflare import ${res.status}: ${errs}`);
+  }
+  return json;
+}
+
 /** Look up a zone id by domain name within an account. */
 export async function zoneId(
   accountKey: string | undefined,

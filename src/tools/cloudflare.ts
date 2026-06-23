@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { cf, cfText, zoneId } from "../lib/cloudflare.js";
-import { text, safe } from "../lib/result.js";
+import { cf, cfText, cfImportBind, zoneId } from "../lib/cloudflare.js";
+import { text, json, safe } from "../lib/result.js";
 
 const accountArg = z
   .string()
@@ -112,6 +112,60 @@ export function registerCloudflare(server: McpServer) {
     safe(async ({ domain, account }) => {
       const id = await zoneId(account, domain);
       return text(await cfText(account, `/zones/${id}/dns_records/export`));
+    })
+  );
+
+  server.registerTool(
+    "cf_zone_restore",
+    {
+      title: "Restore DNS from BIND",
+      description:
+        "Import a BIND zone file into a zone — restores records after an accidental zone " +
+        "deletion or purge. Pass the BIND text from a prior cf_export_records backup.",
+      inputSchema: {
+        domain: z.string().describe("Zone domain"),
+        bind: z.string().describe("BIND zone file contents to import"),
+        proxied: z
+          .boolean()
+          .optional()
+          .describe("Override proxy status for imported records (omit to keep file's)"),
+        account: accountArg,
+      },
+    },
+    safe(async ({ domain, bind, proxied, account }) => {
+      const id = await zoneId(account, domain);
+      const res = await cfImportBind(account, id, bind, proxied);
+      const total = res.result?.total_records_parsed ?? res.result?.recs_added;
+      return text(`Imported into ${domain}. ${JSON.stringify(res.result ?? res)}\n(records parsed: ${total})`);
+    })
+  );
+
+  server.registerTool(
+    "cf_purge_cache",
+    {
+      title: "Purge Cloudflare cache",
+      description:
+        "Purge a zone's Cloudflare cache — everything, or only specific URLs. Note: this is " +
+        "the CF edge cache, separate from origin LiteSpeed LSCache.",
+      inputSchema: {
+        domain: z.string().describe("Zone domain"),
+        files: z
+          .array(z.string().url())
+          .optional()
+          .describe("Specific URLs to purge (omit to purge everything)"),
+        account: accountArg,
+      },
+    },
+    safe(async ({ domain, files, account }) => {
+      const id = await zoneId(account, domain);
+      const body = files?.length ? { files } : { purge_everything: true };
+      const res = await cf(account, `/zones/${id}/purge_cache`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      return res.success
+        ? text(files?.length ? `Purged ${files.length} URL(s) for ${domain}` : `Purged everything for ${domain}`)
+        : json(res);
     })
   );
 }
