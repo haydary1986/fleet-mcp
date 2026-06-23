@@ -54,14 +54,20 @@ Then in Claude:
 
 ## Installing an OJS journal
 
-`ojs_install` runs your proven recipe end-to-end on an **existing** Plesk
-subdomain (deploy files → create DB+user → CLI install → fix
-`allowed_hosts`/`base_url`/`trust_x_forwarded_for` → perms → PHP handler) and
-returns the generated admin + DB credentials. Prerequisites: the subdomain, its
-docroot and DNS already exist (use `cf_dns_add` + Plesk for those first).
+`ojs_install` runs the proven recipe end-to-end and returns the generated admin
++ DB credentials. Two modes:
 
-> "Install an OJS journal on journal.example.com, create the journal too,
->  English name 'New Journal', Arabic 'مجلة جديدة', acronym NJ"
+- **`provision: true`** — full from-scratch: create the Cloudflare A record
+  (gray), create the Plesk subdomain, deploy files, create DB+user, CLI install,
+  patch `config.inc.php` (`allowed_hosts`/`base_url`/`trust_x_forwarded_for`),
+  set perms + PHP handler, issue a Let's Encrypt cert, then flip the record to
+  proxied. Needs `parentDomain` + `originIp`.
+- **`provision: false`** (default) — install into an **existing** webspace
+  (subdomain, docroot and DNS already set up).
+
+> "Install an OJS journal from scratch on journal.example.com (parent example.com,
+>  origin 203.0.113.10), create the journal too, English name 'New Journal',
+>  Arabic 'مجلة جديدة', acronym NJ"
 
 It can optionally create the first journal in the same run (`createJournal`),
 applying the three known CLI gotchas (loadAllPlugins throw, missing default

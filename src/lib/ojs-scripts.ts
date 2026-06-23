@@ -31,6 +31,11 @@ export interface OjsInstallParams {
   downloadBase: string;
   phpHandler: string;
   setPhpHandler: boolean;
+  /** When set, create the Plesk subdomain (sublabel under pleskDomain) and
+   *  discover the docroot at runtime instead of using `docroot`. */
+  provision?: { sublabel: string };
+  /** Issue a Let's Encrypt cert at the end (DNS must be DNS-only/gray). */
+  issueLE?: boolean;
 }
 
 export function buildInstallScript(p: OjsInstallParams): string {
@@ -44,13 +49,23 @@ plesk bin site --update "${p.domain}" -php_handler_id "${p.phpHandler}" 2>&1 \
   || echo "(could not set PHP handler automatically — set it in Plesk)"`
     : "";
 
+  const docrootSetup = p.provision
+    ? String.raw`echo "==> Create Plesk subdomain ${p.domain} under ${p.pleskDomain}"
+plesk bin subdomain --create ${p.provision.sublabel} -domain ${p.pleskDomain} 2>&1 | tail -2
+DOCROOT=$(plesk bin subdomain --info ${p.domain} 2>/dev/null | grep -iE "root" | grep -oE "/var/www/vhosts/[^ ]+" | head -1)
+if [ -z "$DOCROOT" ] || [ ! -d "$DOCROOT" ]; then echo "ERROR: could not determine docroot after creating ${p.domain}"; exit 2; fi`
+    : String.raw`DOCROOT="${p.docroot}"
+if [ ! -d "$DOCROOT" ]; then echo "ERROR: docroot $DOCROOT does not exist. Create the Plesk subdomain/webspace + DNS first."; exit 2; fi`;
+
+  const leStep = p.issueLE
+    ? String.raw`
+echo "==> Issue Let's Encrypt cert (HTTP-01; DNS must be DNS-only/gray now)"
+plesk bin extension --exec letsencrypt cli.php -d ${p.domain} -m ${p.adminEmail} 2>&1 | tail -6 || echo "(LE issuance reported an issue — CF Full still serves a trusted cert when proxied)"`
+    : "";
+
   return String.raw`
 echo "==> Preflight"
-DOCROOT="${p.docroot}"
-if [ ! -d "$DOCROOT" ]; then
-  echo "ERROR: docroot $DOCROOT does not exist. Create the Plesk subdomain/webspace + DNS first."
-  exit 2
-fi
+${docrootSetup}
 WEBUSER=$(stat -c '%U' "$DOCROOT")
 echo "web user = $WEBUSER"
 
@@ -126,8 +141,9 @@ echo "==> Fix ownership"
 chown -R "$WEBUSER":psacln "$DOCROOT" "${p.filesDir}"
 ${handlerStep}
 
+${leStep}
 echo "==> Smoke test"
-curl -sS -o /dev/null -w "homepage HTTP %{http_code}\n" "https://${p.domain}/" || true
+curl -sk -o /dev/null -w "homepage HTTP %{http_code}\n" "https://${p.domain}/" || true
 echo "==> DONE"
 `;
 }
@@ -150,7 +166,8 @@ function phpAssoc(obj: Record<string, string>): string {
 
 export interface OjsJournalParams {
   domain: string;
-  docroot: string;
+  /** Docroot path; when omitted it is discovered from Plesk at runtime. */
+  docroot?: string;
   urlPath: string;
   primaryLocale: string;
   locales: string[];
@@ -232,9 +249,14 @@ echo "OK ctxId=$ctxId\n";
 `;
 
   const b64 = Buffer.from(php, "utf8").toString("base64");
+  const docrootAssign = p.docroot
+    ? String.raw`DOCROOT="${p.docroot}"`
+    : String.raw`DOCROOT=$(plesk bin subdomain --info ${p.domain} 2>/dev/null | grep -iE "root" | grep -oE "/var/www/vhosts/[^ ]+" | head -1)
+[ -z "$DOCROOT" ] && DOCROOT=/var/www/vhosts/${p.domain}/httpdocs`;
 
   return String.raw`
-DOCROOT="${p.docroot}"
+${docrootAssign}
+[ -d "$DOCROOT" ] || { echo "ERROR: docroot $DOCROOT not found"; exit 2; }
 WEBUSER=$(stat -c '%U' "$DOCROOT")
 echo "${b64}" | base64 -d > "$DOCROOT/tools/mkjournal.php"
 "${p.phpBin}" "$DOCROOT/tools/mkjournal.php" 2>&1 | tail -40
