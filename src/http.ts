@@ -3,27 +3,42 @@
 // Stateless mode: each request gets a fresh server+transport, so many clients
 // can connect concurrently. Protected by a bearer token (MCP_AUTH_TOKEN).
 import express, { type Request, type Response, type NextFunction } from "express";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createServer } from "./createServer.js";
 import { config } from "./config.js";
+import { NAME } from "./lib/version.js";
+import { safeTokenEquals, bearerToken } from "./lib/auth.js";
 
 const app = express();
+// Security headers (no need for a referrer/CSP on a JSON API; helmet defaults are fine).
+app.use(helmet());
 app.use(express.json({ limit: "4mb" }));
+
+// Per-IP rate limit to blunt brute-force against the bearer token.
+const limiter = rateLimit({
+  windowMs: 60_000,
+  limit: 120,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "rate limit exceeded" },
+});
+app.use(limiter);
 
 // Unauthenticated health check (for Traefik/Coolify/uptime probes).
 app.get("/health", (_req: Request, res: Response) => {
-  res.json({ ok: true, name: "fleet-mcp" });
+  res.json({ ok: true, name: NAME });
 });
 
-// Bearer-token auth for everything else.
+// Bearer-token auth for everything else (constant-time compare — no length/byte leak).
 app.use((req: Request, res: Response, next: NextFunction) => {
   if (!config.http.authToken) {
     res.status(500).json({ error: "MCP_AUTH_TOKEN is not set — refusing to serve unauthenticated" });
     return;
   }
-  const header = req.headers.authorization ?? "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : "";
-  if (token !== config.http.authToken) {
+  const token = bearerToken(req.headers.authorization);
+  if (!safeTokenEquals(token, config.http.authToken)) {
     res.status(401).json({ error: "unauthorized" });
     return;
   }
