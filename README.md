@@ -10,14 +10,24 @@ Coolify** — so you can drive all of it from Claude with plain language.
 |-------|-------|
 | **SSH** | `run_ssh` |
 | **Sites** | `site_status`, `check_all_sites`, `ssl_expiry`, `disk_usage` |
-| **WordPress** | `wp`, `wp_update_plugins`, `wp_purge_lscache`, `wp_health`, `wp_php_handler` |
-| **Cloudflare** | `cf_zone_status`, `cf_dns_list`, `cf_dns_add`, `cf_toggle_proxy`, `cf_export_records` |
+| **WordPress** | `wp`, `wp_update_plugins`, `wp_purge_lscache`, `wp_health`, `wp_php_handler`, `wp_search_replace`, `wp_integrity`, `wp_core_update`, `wp_maintenance`, `wp_backup` |
+| **Cloudflare** | `cf_zone_status`, `cf_dns_list`, `cf_dns_add`, `cf_toggle_proxy`, `cf_export_records`, `cf_zone_restore`, `cf_purge_cache` |
 | **MySQL** | `mysql_query`, `mysql_table_sizes`, `mysql_create_user`, `mysql_dump` |
 | **GitHub** | `gh`, `gh_pr_list`, `gh_create_issue` |
 | **Docker** | `docker_ps`, `docker_logs`, `docker_restart`, `docker_raw` |
 | **Coolify** | `coolify_servers`, `coolify_apps`, `coolify_deploy`, `coolify_resources` |
 | **OJS** | `ojs_install`, `ojs_create_journal`, `ojs_status` |
 | **Dev** | `dev_check`, `scaffold_nextjs`, `scaffold_go`, `scaffold_ts_lib`, `dockerize` |
+| **Plesk** | `plesk_list_domains`, `plesk_domain_info`, `plesk_create_subdomain`, `plesk_set_php_handler`, `plesk_create_db`, `plesk_issue_le` |
+| **fail2ban** | `f2b_status`, `f2b_check_ip`, `f2b_unban`, `f2b_ignore_add` |
+| **Moodle** | `moodle_cron`, `moodle_purge_caches`, `moodle_maintenance`, `moodle_upgrade`, `moodle_cli` |
+
+**Resources:** `fleet://inventory` — a live list of Plesk domains + available PHP
+handlers, readable by the model without a tool call.
+
+**Tests / CI:** `npm test` runs the node:test suite (pure functions — creds,
+config, result helpers, OJS script builders); GitHub Actions runs build + tests
+on every push.
 
 ## Setup
 

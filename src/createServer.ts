@@ -13,6 +13,7 @@ import { registerDev } from "./tools/dev.js";
 import { registerPlesk } from "./tools/plesk.js";
 import { registerFail2ban } from "./tools/fail2ban.js";
 import { registerMoodle } from "./tools/moodle.js";
+import { registerResources } from "./resources.js";
 
 /** Build a fully-configured MCP server. Transport-agnostic — used by both the
  *  stdio (local) and Streamable HTTP (remote/team) entry points. */
@@ -32,6 +33,7 @@ export function createServer(): McpServer {
   registerPlesk(server);
   registerFail2ban(server);
   registerMoodle(server);
+  registerResources(server);
 
   return server;
 }

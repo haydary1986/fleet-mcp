@@ -8,9 +8,10 @@ export interface CloudflareAccount {
   token: string;
 }
 
-function parseCloudflareAccounts(): CloudflareAccount[] {
+export function parseCloudflareAccounts(
+  raw = process.env.CF_ACCOUNTS?.trim()
+): CloudflareAccount[] {
   // CF_ACCOUNTS = "main:token1,secondary:token2"
-  const raw = process.env.CF_ACCOUNTS?.trim();
   if (!raw) return [];
   return raw
     .split(",")
